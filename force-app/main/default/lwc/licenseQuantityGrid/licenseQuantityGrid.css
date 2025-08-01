@@ -1,0 +1,34 @@
+.grid-container {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.slds-card__body {
+    padding: 1rem;
+}
+
+/* Ensure proper spacing for the datatable */
+lightning-datatable {
+    --slds-c-datatable-cell-spacing-block: 0.5rem;
+    --slds-c-datatable-cell-spacing-inline: 1rem;
+}
+
+/* Style for the grade column to make it stand out */
+.slds-table th:first-child,
+.slds-table td:first-child {
+    font-weight: bold;
+    background-color: #f3f3f3;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+}
+
+/* Ensure numbers are right-aligned in cells */
+.slds-table td[data-label*="Year"] {
+    text-align: right;
+}
+
+/* Loading overlay */
+.slds-is-relative {
+    min-height: 200px;
+}

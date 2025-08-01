@@ -1,0 +1,48 @@
+<template>
+    <lightning-card title="License Quantity Grid" icon-name="standard:account">
+        <div slot="actions">
+            <lightning-button-group>
+                <lightning-button
+                    variant="brand"
+                    label="Save"
+                    title="Save Changes"
+                    onclick={handleSave}
+                    disabled={saveButtonDisabled}>
+                </lightning-button>
+                <lightning-button
+                    variant="neutral"
+                    label="Cancel"
+                    title="Cancel Changes"
+                    onclick={handleCancel}
+                    disabled={cancelButtonDisabled}>
+                </lightning-button>
+            </lightning-button-group>
+        </div>
+
+        <div class="slds-card__body slds-card__body_inner">
+            <template if:true={isLoading}>
+                <div class="slds-is-relative">
+                    <lightning-spinner alternative-text="Loading..." size="medium"></lightning-spinner>
+                </div>
+            </template>
+
+            <div class="grid-container">
+                <lightning-datatable
+                    key-field="id" data={gridData}
+                    columns={yearColumns}
+                    oncellchange={handleDraftValueChange} draft-values={draftValues} hide-checkbox-column="true"
+                    show-row-number-column="false"
+                    resize-column-disabled="true"
+                    suppress-bottom-bar="true">
+                </lightning-datatable>
+            </div>
+
+            <template if:true={hasChanges}>
+                <div class="slds-notify slds-notify_alert slds-theme_info slds-m-top_small" role="alert">
+                    <span class="slds-assistive-text">Info</span>
+                    <h2>You have unsaved changes. Click Save to commit changes or Cancel to discard them.</h2>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>
