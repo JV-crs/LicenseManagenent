@@ -25,11 +25,11 @@
                     <lightning-spinner alternative-text="Loading..." size="medium"></lightning-spinner>
                 </div>
             </template>
-
+        
             <div class="grid-container">
                 <lightning-datatable
                     key-field="id" data={gridData}
-                    columns={yearColumns}
+                    columns={columns}
                     oncellchange={handleDraftValueChange} draft-values={draftValues} hide-checkbox-column="true"
                     show-row-number-column="false"
                     resize-column-disabled="true"

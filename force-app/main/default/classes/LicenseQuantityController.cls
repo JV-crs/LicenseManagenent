@@ -16,6 +16,26 @@ public with sharing class LicenseQuantityController {
         }
     }
     
+    @AuraEnabled(cacheable=true)
+    public static Customer_Success_Module__c getCustomerSuccessModuleConfig(Id customerSuccessModuleId) {
+        if(customerSuccessModuleId == null){throw new AuraHandledException('Null Id');}
+        Customer_Success_Module__c record = new Customer_Success_Module__c();
+        try {
+            // Check if the new fields exist
+            Map<String, Schema.SObjectField> fieldMap = Customer_Success_Module__c.sObjectType.getDescribe().fields.getMap();
+            
+            // Build query dynamically
+            String query = 'SELECT Id, F5_LMS_Start_Date__c, F5_Initial_Renewal_date__c, F5_Contract_Length__c FROM Customer_Success_Module__c WHERE Id = :customerSuccessModuleId LIMIT 1';
+            
+            record = Database.query(query);
+            
+        } catch (Exception e) {
+            throw new AuraHandledException('Error retrieving config data: ' + e.getMessage());
+        }
+        
+        return record;
+    }
+    
     @AuraEnabled
     public static void saveLicenseData(Id customerSuccessModuleId, List<LicenseChangeWrapper> licenseChanges) {
         try {

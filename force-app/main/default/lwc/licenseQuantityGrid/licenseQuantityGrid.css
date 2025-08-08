@@ -28,7 +28,10 @@ lightning-datatable {
     text-align: right;
 }
 
-/* Loading overlay */
-.slds-is-relative {
-    min-height: 200px;
+/* Simple approach to hide row numbers */
+.slds-table .slds-th_action:first-child,
+.slds-table .slds-cell-fixed:first-child {
+    visibility: hidden;
+    width: 0 !important;
+    padding: 0 !important;
 }
