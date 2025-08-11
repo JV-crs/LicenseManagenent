@@ -25,7 +25,7 @@ public with sharing class LicenseQuantityController {
             Map<String, Schema.SObjectField> fieldMap = Customer_Success_Module__c.sObjectType.getDescribe().fields.getMap();
             
             // Build query dynamically
-            String query = 'SELECT Id, F5_LMS_Start_Date__c, F5_Initial_Renewal_date__c, F5_Contract_Length__c FROM Customer_Success_Module__c WHERE Id = :customerSuccessModuleId LIMIT 1';
+            String query = 'SELECT Id, F5_LMS_Start_Date__c, F5_Initial_Renewal_date__c, F5_Contract_Length__c, F5_Maximum_License__c FROM Customer_Success_Module__c WHERE Id = :customerSuccessModuleId LIMIT 1';
             
             record = Database.query(query);
             

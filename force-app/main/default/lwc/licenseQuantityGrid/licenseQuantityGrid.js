@@ -21,6 +21,7 @@ export default class LicenseQuantityGrid extends LightningElement {
 
     // The configuration data from the server, used for dynamic columns
     @track configData;
+    @track originalLicenseData = []; // Store original data for comparison
 
     @wire(getCustomerSuccessModuleConfig, { customerSuccessModuleId: '$recordId' })
     wiredConfig(result) {
@@ -28,11 +29,13 @@ export default class LicenseQuantityGrid extends LightningElement {
         if (result.data) {
             this.configData = result.data; 
             console.log('CSM Config received:', this.configData);
-            if (this.wiredLicenseData) {
-                refreshApex(this.wiredLicenseData);
+            // Reprocess license data if it's already available
+            if (this.originalLicenseData.length > 0) {
+                this.processLicenseData(this.originalLicenseData);
             }
         } else if (result.error) {
-            console.log('CSM Config error (expected if fields dont exist):', result.error);
+            console.error('CSM Config error:', result.error);
+            this.showToast('Error', 'Failed to load configuration data', 'error');
         }
     }
 
@@ -40,19 +43,33 @@ export default class LicenseQuantityGrid extends LightningElement {
     wiredGetLicenseData(result) {
         this.wiredLicenseData = result; 
         if (result.data) {
-            this.processLicenseData(result.data);
+            this.originalLicenseData = result.data;
             console.log('License data received:', result.data);
+            
+            // Only process if config is also available
+            if (this.configData) {
+                this.processLicenseData(result.data);
+            }
         } else if (result.error) {
+            console.error('License data error:', result.error);
             this.showToast('Error', 'Failed to load license data: ' + result.error.body.message, 'error');
         }
     }
-
+    
     get columns() {
         if (!this.configData) {
             return [];
         }
-        const maxCols = this.configData.F5_Contract_Length__c ? parseInt(this.configData.F5_Contract_Length__c, 10) : 7; // Default to 7 if not set
-        const zeroColumn = { label: 'Grade', fieldName: 'grade', type: 'text', editable: false, fixedWidth: 80 };
+        
+        const maxCols = this.configData.F5_Contract_Length__c ? parseInt(this.configData.F5_Contract_Length__c, 10) : 7;
+        const zeroColumn = { 
+            label: 'Grade', 
+            fieldName: 'grade', 
+            type: 'text', 
+            editable: false, 
+            fixedWidth: 80, 
+            cellAttributes: { class: { fieldName: 'gradeClass' } } 
+        };
         let columns = [zeroColumn];
 
         // Store the initial date to use as a starting point for the loop
@@ -66,7 +83,7 @@ export default class LicenseQuantityGrid extends LightningElement {
                 // Use the LMS Start Date for the first column, formatted
                 dateLabel = currentDate ? this.americanDateFormat(currentDate) : 'Year 1';
             } else {
-                dateLabel = nextDate ? this.americanDateFormat(this.addYearsToDateString(nextDate, (i - 1))) : `Year ${i-1}`;
+                dateLabel = nextDate ? this.americanDateFormat(this.addYearsToDateString(nextDate, (i - 2))) : `Year ${i}`;
             }
 
             columns.push({
@@ -74,7 +91,12 @@ export default class LicenseQuantityGrid extends LightningElement {
                 fieldName: `year${i}`,
                 type: 'number',
                 editable: true,
-                typeAttributes: { minimumFractionDigits: 0, maximumFractionDigits: 0 },
+                typeAttributes: { 
+                    minimumFractionDigits: 0, 
+                    maximumFractionDigits: 0,
+                    step: 1,
+                    min: 0
+                },
                 cellAttributes: {
                     class: { fieldName: 'rowClass' }
                 }
@@ -84,33 +106,51 @@ export default class LicenseQuantityGrid extends LightningElement {
     }
 
     // Helper method to calculate the totals for each year
-    calculateTotals(data, maxYears) {
+    calculateTotals(dataRows, maxYears) {
         // Create a row object for the totals
-        const totals = { id: 'totals-row', grade: 'Total', rowClass: 'total-row slds-text-heading_small slds-text-color_success' };
+        const totals = { 
+            id: 'totals-row', 
+            grade: 'Total', 
+            rowClass: 'total-row slds-text-heading_small slds-text-color_success', 
+            gradeClass: 'slds-cell-edit slds-cell-edit_no-button'
+        };
+        
         for (let year = 1; year <= maxYears; year++) {
             const yearKey = `year${year}`;
-            // Use reduce to sum the values for the current year across all data rows
-            totals[yearKey] = data.reduce((sum, row) => sum + (row[yearKey] || 0), 0);
+            // Ensure numeric values and sum them
+            totals[yearKey] = dataRows.reduce((sum, row) => {
+                const value = row[yearKey];
+                // Convert to number, defaulting to 0 if null/undefined/NaN
+                const numValue = (value === null || value === undefined || value === '') ? 0 : parseInt(value, 10);
+                return sum + (isNaN(numValue) ? 0 : numValue);
+            }, 0);
         }
         return totals;
     }
 
     processLicenseData(data) {
+        if (!this.configData) {
+            console.log('Config data not available yet, skipping processLicenseData');
+            return;
+        }
+
         const dataMap = new Map();
         data.forEach(record => {
             const key = `${record.Grade_Level__c}_${record.Year__c}`;
             dataMap.set(key, record.License_Quantity__c);
         });
 
-        const maxYears = (this.configData && this.configData.F5_Contract_Length__c) ? parseInt(this.configData.F5_Contract_Length__c, 10) : 5;
+        const maxYears = this.configData.F5_Contract_Length__c ? parseInt(this.configData.F5_Contract_Length__c, 10) : 7;
         
         // Build the main data rows
         const mainData = this.gradeLabels.map((grade, index) => {
-            const row = { id: `row-${index}`, grade: grade, rowClass: '' }; 
+            const row = { id: `row-${index}`, grade: grade, rowClass: '', gradeClass: 'slds-cell-edit' }; 
             
             for (let year = 1; year <= maxYears; year++) {
                 const key = `${grade}_${year}`;
-                row[`year${year}`] = dataMap.get(key) || null;
+                const value = dataMap.get(key);
+                // Ensure consistent data types - use null for empty values, numbers for actual values
+                row[`year${year}`] = (value === null || value === undefined) ? null : parseInt(value, 10);
             }
             return row;
         });
@@ -118,23 +158,33 @@ export default class LicenseQuantityGrid extends LightningElement {
         // Calculate and add the totals row
         const totalsRow = this.calculateTotals(mainData, maxYears);
         this.gridData = [...mainData, totalsRow];
+        
+        console.log('Processed grid data:', this.gridData);
     }
 
     // Validation method to check if totals exceed maximum license limit
     validateTotals(dataRows) {
-        console.log('Validating totals for data rows:', JSON.stringify(dataRows, null, 2));
-        const maxLicense = this.configData?.F5_Maximum_License__c ? parseInt(this.configData.F5_Maximum_License__c, 10) : null;
-        console.log('Validating totals for data rows max per year:', maxLicense);
-        if (!maxLicense) {
+        if (!this.configData || !this.configData.F5_Maximum_License__c) {
+            console.log('No maximum license configured, skipping validation');
             return { isValid: true, errors: [] };
         }
 
-        const maxYears = (this.configData && this.configData.F5_Contract_Length__c) ? parseInt(this.configData.F5_Contract_Length__c, 10) : 5;
+        const maxLicense = parseInt(this.configData.F5_Maximum_License__c, 10);
+        const maxYears = this.configData.F5_Contract_Length__c ? parseInt(this.configData.F5_Contract_Length__c, 10) : 7;
         const errors = [];
+
+        console.log('Validating totals - Max License:', maxLicense);
+        console.log('Data rows for validation:', dataRows);
 
         for (let year = 1; year <= maxYears; year++) {
             const yearKey = `year${year}`;
-            const total = dataRows.reduce((sum, row) => sum + (row[yearKey] || 0), 0);
+            const total = dataRows.reduce((sum, row) => {
+                const value = row[yearKey];
+                const numValue = (value === null || value === undefined || value === '') ? 0 : parseInt(value, 10);
+                return sum + (isNaN(numValue) ? 0 : numValue);
+            }, 0);
+            
+            console.log(`Year ${year} total: ${total}, Max: ${maxLicense}`);
             
             if (total > maxLicense) {
                 const yearLabel = this.getYearLabel(year);
@@ -142,10 +192,13 @@ export default class LicenseQuantityGrid extends LightningElement {
             }
         }
 
-        return {
+        const result = {
             isValid: errors.length === 0,
             errors: errors
         };
+        
+        console.log('Validation result:', result);
+        return result;
     }
 
     // Helper method to get year label for validation messages
@@ -158,40 +211,68 @@ export default class LicenseQuantityGrid extends LightningElement {
     }
 
     handleDraftValueChange(event) {
-        let draftValues = event.detail.draftValues;
+        const draftValues = event.detail.draftValues;
+        console.log('Draft values received:', draftValues);
         
         // Filter out any draft values for the totals row to prevent editing
-        draftValues = draftValues.filter(draft => draft.id !== 'totals-row');
+        const filteredDraftValues = draftValues.filter(draft => draft.id !== 'totals-row');
         
-        // Update the component's draftValues to reflect the filtered values
-        this.draftValues = draftValues;
-        
-        if (draftValues.length === 0) {
+        if (filteredDraftValues.length === 0) {
+            this.draftValues = [];
             return; // No valid changes to process
         }
 
         this.hasChanges = true; 
+        this.draftValues = filteredDraftValues;
 
-        const updatedPendingChanges = new Map(this.pendingChanges); 
+        // Clone the current grid data and filter out the totals row
+        const currentDataRows = this.gridData
+            .filter(row => row.id !== 'totals-row')
+            .map(row => ({ ...row })); // Create a shallow copy
 
-        // Filter out the totals row before processing changes, so it doesn't get treated as editable
-        const originalDataRows = this.gridData.filter(row => row.id !== 'totals-row');
+        // Apply the draft values to the cloned data
+        const updatedDataRows = currentDataRows.map(row => {
+            const draft = filteredDraftValues.find(d => d.id === row.id);
+            if (draft) {
+                // Apply draft changes
+                const updatedRow = { ...row };
+                Object.keys(draft).forEach(key => {
+                    if (key !== 'id') {
+                        let value = draft[key];
+                        // Convert to integer or null
+                        if (value === null || value === undefined || value === '') {
+                            updatedRow[key] = null;
+                        } else {
+                            const intValue = parseInt(value, 10);
+                            updatedRow[key] = isNaN(intValue) ? null : Math.max(0, intValue); // Ensure non-negative
+                        }
+                    }
+                });
+                return updatedRow;
+            }
+            return row;
+        });
 
-        draftValues.forEach(draft => {
-            const originalRow = originalDataRows.find(row => row.id === draft.id);
+        // Recalculate totals based on the updated data rows
+        const maxYears = this.configData ? parseInt(this.configData.F5_Contract_Length__c, 10) || 7 : 7;
+        const totalsRow = this.calculateTotals(updatedDataRows, maxYears);
+        
+        // Update the grid with the new data rows and the recalculated totals
+        this.gridData = [...updatedDataRows, totalsRow];
+
+        // Update pending changes for saving
+        const updatedPendingChanges = new Map(this.pendingChanges);
+
+        filteredDraftValues.forEach(draft => {
+            const originalRow = updatedDataRows.find(row => row.id === draft.id);
             if (!originalRow) {
                 console.error('Original row not found for draft ID:', draft.id);
                 return;
             }
             const grade = originalRow.grade;
 
-            const rowIndex = originalDataRows.findIndex(row => row.id === draft.id);
-            if (rowIndex !== -1) {
-                originalDataRows[rowIndex] = { ...originalDataRows[rowIndex], ...draft };
-            }
-
             Object.keys(draft).forEach(field => {
-                if (field !== 'id' && field !== 'grade') { 
+                if (field !== 'id' && field !== 'grade' && field.startsWith('year')) { 
                     const year = field.replace('year', '');
                     const key = `${grade}_${year}`;
                     let value = draft[field];
@@ -214,21 +295,16 @@ export default class LicenseQuantityGrid extends LightningElement {
             });
         });
 
-        // Validate totals before updating the grid
-        const validation = this.validateTotals(originalDataRows);
+        this.pendingChanges = updatedPendingChanges;
+
+        // Validate totals after updating the grid
+        const validation = this.validateTotals(updatedDataRows);
         
         if (!validation.isValid) {
-            // Show validation errors but still allow the changes to be made
-            const errorMessage = 'Validation Warnings:\n' + validation.errors.join('\n');
+            // Show validation errors as warnings during editing
+            const errorMessage = validation.errors.join('\n');
             this.showToast('Warning', errorMessage, 'warning');
         }
-
-        // Recalculate totals after processing the draft changes
-        const maxYears = (this.configData && this.configData.F5_Contract_Length__c) ? parseInt(this.configData.F5_Contract_Length__c, 10) : 5;
-        const totalsRow = this.calculateTotals(originalDataRows, maxYears);
-
-        this.gridData = [...originalDataRows, totalsRow];
-        this.pendingChanges = updatedPendingChanges; 
     }
 
     async handleSave() {
@@ -238,8 +314,8 @@ export default class LicenseQuantityGrid extends LightningElement {
         }
 
         // Final validation before saving
-        const originalDataRows = this.gridData.filter(row => row.id !== 'totals-row');
-        const validation = this.validateTotals(originalDataRows);
+        const dataRows = this.gridData.filter(row => row.id !== 'totals-row');
+        const validation = this.validateTotals(dataRows);
         
         if (!validation.isValid) {
             const errorMessage = 'Cannot save due to validation errors:\n' + validation.errors.join('\n');
@@ -263,8 +339,13 @@ export default class LicenseQuantityGrid extends LightningElement {
             this.pendingChanges.clear(); 
             this.draftValues = [];
 
-            this.template.querySelector('lightning-datatable').draftValues = [];
+            // Clear draft values from the datatable
+            const datatable = this.template.querySelector('lightning-datatable');
+            if (datatable) {
+                datatable.draftValues = [];
+            }
 
+            // Refresh data
             await refreshApex(this.wiredLicenseData);
 
         } catch (error) {
@@ -286,32 +367,49 @@ export default class LicenseQuantityGrid extends LightningElement {
         this.pendingChanges.clear();
         this.draftValues = [];
 
-        this.template.querySelector('lightning-datatable').draftValues = [];
+        // Clear draft values from the datatable
+        const datatable = this.template.querySelector('lightning-datatable');
+        if (datatable) {
+            datatable.draftValues = [];
+        }
 
+        // Refresh to original data
         refreshApex(this.wiredLicenseData);
         this.showToast('Info', 'Changes discarded.', 'info');
     }
     
     addYearsToDateString(dateString, yearsToAdd) {
         if (!dateString) return null;
-        const date = new Date(dateString);
-        date.setFullYear(date.getFullYear() + yearsToAdd);
-        return date.toISOString().split('T')[0]; 
+        try {
+            const date = new Date(dateString);
+            date.setFullYear(date.getFullYear() + yearsToAdd);
+            return date.toISOString().split('T')[0]; 
+        } catch (e) {
+            console.error('Error adding years to date:', e);
+            return null;
+        }
     }
     
     americanDateFormat(inputDate) {
         if (!inputDate) return null;
         
-        // Use a regex to extract the parts of the date string
-        const regex = /^(\d{4})-(\d{2})-(\d{2})$/;
-        const match = inputDate.match(regex);
-
-        if (match) {
-            const [, year, month, day] = match;
+        try {
+            // Handle both string and Date inputs
+            const date = typeof inputDate === 'string' ? new Date(inputDate) : inputDate;
+            
+            if (isNaN(date.getTime())) {
+                return null; // Invalid date
+            }
+            
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const year = date.getFullYear();
+            
             return `${month}/${day}/${year}`;
+        } catch (e) {
+            console.error('Error formatting date:', e);
+            return null;
         }
-        
-        return null; // Return null if the input format is not YYYY-MM-DD
     }
     
     showToast(title, message, variant) {
