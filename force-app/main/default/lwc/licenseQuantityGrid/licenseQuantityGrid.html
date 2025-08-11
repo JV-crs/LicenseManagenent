@@ -28,9 +28,12 @@
         
             <div class="grid-container">
                 <lightning-datatable
-                    key-field="id" data={gridData}
+                    key-field="id" 
+                    data={gridData}
                     columns={columns}
-                    oncellchange={handleDraftValueChange} draft-values={draftValues} hide-checkbox-column="true"
+                    oncellchange={handleDraftValueChange} 
+                    draft-values={draftValues} 
+                    hide-checkbox-column="true"
                     show-row-number-column="false"
                     resize-column-disabled="true"
                     suppress-bottom-bar="true">

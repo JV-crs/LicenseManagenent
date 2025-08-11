@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Customer_Success_Module__c</fullName>
+    <label>Customer Success Module</label>
+    <referenceTo>Customer_Success_Module__c</referenceTo>
+    <relationshipLabel>Fly Five License Qquantities</relationshipLabel>
+    <relationshipName>Fly_Five_License_Quantities</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackTrending>false</trackTrending>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

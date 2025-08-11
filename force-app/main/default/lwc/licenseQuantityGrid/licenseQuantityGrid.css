@@ -14,8 +14,8 @@ lightning-datatable {
 }
 
 /* Style for the grade column to make it stand out */
-.slds-table th:first-child,
-.slds-table td:first-child {
+.slds-table th:nth-child(2),
+.slds-table td:nth-child(2) {
     font-weight: bold;
     background-color: #f3f3f3;
     position: sticky;
@@ -23,15 +23,13 @@ lightning-datatable {
     z-index: 1;
 }
 
-/* Ensure numbers are right-aligned in cells */
-.slds-table td[data-label*="Year"] {
-    text-align: right;
+/* Style for totals row to make it clear it's not editable */
+lightning-datatable [data-row-key-value="totals-row"] td {
+    background-color: #e8f4fd !important;
+    font-weight: bold !important;
+    pointer-events: none !important;
 }
 
-/* Simple approach to hide row numbers */
-.slds-table .slds-th_action:first-child,
-.slds-table .slds-cell-fixed:first-child {
-    visibility: hidden;
-    width: 0 !important;
-    padding: 0 !important;
+lightning-datatable [data-row-key-value="totals-row"] .slds-cell-edit {
+    display: none !important;
 }
